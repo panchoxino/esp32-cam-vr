@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ESP32-CAM VR Debug</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; text-align: center; }
+    img { width: 100%; max-height: 240px; margin-bottom: 10px; }
+    button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+    #log { font-size: 14px; white-space: pre-wrap; text-align: left; margin: 10px auto; max-width: 90%; background: #222; padding: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h2>ESP32-CAM VR DEBUG</h2>
+  <img id="cam" src="http://192.168.4.1/stream" />
+  <button onclick="startGyro()">Activar Giroscopio</button>
+  <button onclick="testManual()">Enviar manual</button>
+
+  <p id="status">Esperando activación...</p>
+  <div id="log"></div>
+
+  <script>
+    const ESP32_IP = "192.168.4.1";
+    let lastPan = 0, lastTilt = 0;
+    const logBox = document.getElementById("log");
+
+    function log(msg) {
+      console.log(msg);
+      logBox.innerText += msg + "\n";
+    }
+
+    function send(setting, value) {
+      const url = `http://${ESP32_IP}/move?pan=${value.pan}&tilt=${value.tilt}`;
+      fetch(url)
+        .then(res => log("Sent: " + url))
+        .catch(err => log("Fetch error: " + err));
+    }
+
+    function handleOrientation(event) {
+      let pan = Math.round(event.gamma + 90);
+      let tilt = Math.round(event.beta + 90);
+
+      if (Math.abs(pan - lastPan) > 2 || Math.abs(tilt - lastTilt) > 2) {
+        send('move', { pan: pan, tilt: tilt });
+        lastPan = pan;
+        lastTilt = tilt;
+        document.getElementById("status").innerText = `Giro: Pan ${pan}°, Tilt ${tilt}°`;
+      }
+    }
+
+    function startGyro() {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              window.addEventListener("deviceorientation", handleOrientation);
+              log("Giroscopio activado con permiso.");
+              document.getElementById("status").innerText = "Giroscopio activado";
+            } else {
+              alert("Permiso denegado para usar el giroscopio.");
+            }
+          })
+          .catch(err => log("Error al pedir permiso: " + err));
+      } else {
+        window.addEventListener("deviceorientation", handleOrientation);
+        log("Giroscopio activado sin permisos explícitos.");
+        document.getElementById("status").innerText = "Giroscopio activado";
+      }
+    }
+
+    function testManual() {
+      send('move', { pan: 90, tilt: 90 });
+    }
+  </script>
+</body>
+</html>
